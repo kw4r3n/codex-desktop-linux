@@ -396,6 +396,8 @@ After changing installer, packaging, or updater logic:
 ```bash
 bash -n install.sh scripts/lib/*.sh launcher/start.sh.template scripts/build-deb.sh scripts/build-rpm.sh scripts/build-pacman.sh scripts/install-deps.sh
 node --check scripts/patch-linux-window-ui.js
+for file in scripts/patches/*.js; do node --check "$file"; done
+node --check scripts/ci/validate-patch-report.js
 node --test scripts/patch-linux-window-ui.test.js
 bash tests/scripts_smoke.sh
 cargo check -p codex-update-manager

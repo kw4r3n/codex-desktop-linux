@@ -137,6 +137,8 @@ SCRIPT
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/scripts/lib/linux-update-bridge-patch.js"
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/scripts/lib/patch-report.js"
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/scripts/lib/rebuild-report.sh"
+    assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/scripts/patches/registry.js"
+    assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/scripts/patches/shared.js"
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/node-runtime/bin/node"
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/Cargo.toml"
     assert_file_exists "$pkg_root/opt/codex-desktop/update-builder/computer-use-linux/Cargo.toml"
@@ -320,6 +322,8 @@ test_upstream_build_app_workflow_tracks_dmg_metadata() {
     assert_contains "$workflow" 'path: /tmp/codex-upstream-ci/Codex.dmg'
     assert_contains "$workflow" 'Last-Modified'
     assert_contains "$workflow" 'sha256sum'
+    assert_contains "$workflow" 'CODEX_PATCH_REPORT_JSON="$GITHUB_WORKSPACE/patch-report.json"'
+    assert_contains "$workflow" 'node scripts/ci/validate-patch-report.js patch-report.json --profile upstream-build'
     assert_contains "$workflow" 'make build-app DMG=/tmp/codex-upstream-ci/Codex.dmg'
     assert_contains "$workflow" 'DMG Last-Modified'
     assert_contains "$workflow" 'DMG SHA-256'
@@ -556,6 +560,8 @@ PY
     assert_contains "$REPO_DIR/scripts/lib/package-common.sh" "node-runtime"
     assert_contains "$REPO_DIR/tests/fixtures/create-packaged-app-fixture.sh" "resources/node-runtime/bin"
     assert_contains "$REPO_DIR/.github/workflows/ci.yml" "tests/fixtures/create-packaged-app-fixture.sh codex-app"
+    assert_contains "$REPO_DIR/.github/workflows/ci.yml" "for file in scripts/patches/"
+    assert_contains "$REPO_DIR/scripts/ci/container-entrypoint.sh" "for file in scripts/patches/"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "MANAGED_NODE_BIN_DIR"
     assert_contains "$REPO_DIR/updater/src/builder.rs" "managed_node_bin_dirs"
     assert_contains "$REPO_DIR/scripts/build-rpm.sh" "stage_common_package_files"
@@ -1568,7 +1574,7 @@ const repoDir = process.argv[2];
 const baseExtracted = process.argv[3];
 const workspace = process.argv[4];
 const patcher = path.join(repoDir, "scripts", "patch-linux-window-ui.js");
-const patcherSource = fs.readFileSync(patcher, "utf8");
+const launchPatchSource = fs.readFileSync(path.join(repoDir, "scripts", "patches", "launch-actions.js"), "utf8");
 const mainBundlePath = path.join(".vite", "build", "main-test.js");
 const baseMainPath = path.join(baseExtracted, mainBundlePath);
 const currentSource = fs.readFileSync(baseMainPath, "utf8");
@@ -1580,7 +1586,7 @@ function assert(condition, message) {
 }
 
 function extractConst(name) {
-  const match = patcherSource.match(new RegExp(`const ${name} =\\n    "((?:\\\\.|[^"])*)";`));
+  const match = launchPatchSource.match(new RegExp(`const ${name} =\\n    "((?:\\\\.|[^"])*)";`));
   assert(match, `Could not extract ${name}`);
   return JSON.parse(`"${match[1]}"`);
 }

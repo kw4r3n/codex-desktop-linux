@@ -75,7 +75,11 @@ The current working flow is:
 - `packaging/linux/com.github.ilysenko.codex-desktop-linux.update.policy`
   Polkit policy installed under `/usr/share/polkit-1/actions/` so the privileged updater install steps trigger the desktop authentication agent instead of `pkexec`'s textual fallback.
 - `scripts/patch-linux-window-ui.js`
-  ASAR patcher. Independent fail-soft patch functions with regex-driven needles. Each upstream-bundle change goes here.
+  ASAR patcher CLI and compatibility export surface. The implementation lives in `scripts/patches/`.
+- `scripts/patches/`
+  Modular ASAR patch registry and patch groups. Keep patch order in `scripts/patches/registry.js`; add feature-specific needles to the smallest matching module.
+- `scripts/ci/validate-patch-report.js`
+  CI guard that reads `patch-report.json` and fails upstream-build CI when a `required-upstream` patch is missing or skipped.
 - `scripts/patch-linux-window-ui.test.js`
   Node test suite for the patcher. Run with `node --test`.
 - `docs/webview-server-evaluation.md`
@@ -109,7 +113,7 @@ Do not assume `codex-app/` is pristine. If behavior differs from `install.sh`, p
 - CLI preflight:
   Before Electron launches, the generated launcher asks `codex-update-manager` to verify the installed Codex CLI, prompt to install it when it is missing, and update it if the npm package is newer. Terminal launches prompt inline; GUI launches prefer `kdialog` on KDE/Plasma, otherwise `zenity`, before falling back to an actionable desktop notification. Missing-CLI automatic installation is launcher-scoped: the daemon and `codex-update-manager status` report `cli_status: NotInstalled` and may notify, but they do not attempt installation on their own. The check is best-effort: it uses a 1-hour cooldown for npm registry lookups, caches local CLI version reads to keep startup light, falls back to `npm install -g --prefix ~/.local` if a global install fails, and warns instead of blocking app launch when the refresh attempt does not succeed.
 - ASAR patches are independent and fail-soft:
-  `scripts/patch-linux-window-ui.js` is structured as a chain of small, independent patch functions called from `patchMainBundleSource` and `patchExtractedApp`. Each one has its own regex-driven needles, an idempotency check, and a `console.warn` fall-back when the upstream bundle drifts. Current patches: `applyLinuxWindowOptionsPatch`, `applyLinuxMenuPatch`, `applyLinuxSetIconPatch`, `applyLinuxOpaqueBackgroundPatch`, `applyLinuxFileManagerPatch`, `applyLinuxTrayPatch`, `applyLinuxSingleInstancePatch`, `applyLinuxComputerUsePluginGatePatch`, `applyLinuxTrayCloseSettingPatch`, `applyLinuxSettingsPersistencePatch`, `applyLinuxLaunchActionArgsPatch`, `applyLinuxHotkeyWindowPrewarmPatch`, `applyBrowserAnnotationScreenshotPatch`. Plus `patchKeybindsSettingsAssets` (transactional — atomic, fail-soft via `WARN: Keybinds settings patch skipped: ...`) and `patchCommentPreloadBundle` for browser annotation fixes. The three Computer Use UI gates (`applyLinuxComputerUseFeaturePatch`, `applyLinuxComputerUseRendererAvailabilityPatch`, `applyLinuxComputerUseInstallFlowPatch`) are opt-in — see "Linux Computer Use plugin gate" below. When adding a new needle, mirror this pattern — never `throw`.
+  `scripts/patches/registry.js` is the source of truth for patch order and CI policy. Each patch function has its own regex-driven needles, an idempotency check, and a `console.warn` fall-back when the upstream bundle drifts. Current groups: main-process shell/window patches, webview asset patches, keybinds settings, launch actions, Computer Use gates, and package metadata. The wrapper `scripts/patch-linux-window-ui.js` keeps the old CLI and test export surface. When adding a new needle, mirror this pattern — never `throw` unless the existing patch is intentionally required.
 - Linux file manager integration:
   `applyLinuxFileManagerPatch` injects a Linux implementation for `Open in File Manager`. If the upstream minified bundle no longer matches, the install continues and emits exactly `Failed to apply Linux File Manager Patch`.
 - Linux Computer Use plugin gate:

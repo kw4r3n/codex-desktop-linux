@@ -39,6 +39,9 @@ const {
   createPatchReport,
   resolveDesktopName,
 } = require("./patch-linux-window-ui.js");
+const {
+  validateReport,
+} = require("./ci/validate-patch-report.js");
 
 const mainBundlePrefix =
   "let n=require(`electron`),i=require(`node:path`),o=require(`node:fs`);";
@@ -764,6 +767,29 @@ test("fails hard when the Computer Use gate is recognizable but unpatchable", ()
   );
 });
 
+test("reports missing required Computer Use plugin gate as upstream validation failure", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-patch-report-missing-computer-use-"));
+  try {
+    const buildDir = path.join(tempRoot, ".vite", "build");
+    fs.mkdirSync(buildDir, { recursive: true });
+    fs.writeFileSync(path.join(buildDir, "main.js"), `${mainBundlePrefix}var plugins=[];`);
+
+    const report = createPatchReport();
+    captureWarns(() => patchExtractedApp(tempRoot, { report }));
+
+    const pluginGatePatch = report.patches.find((patch) => patch.name === "linux-computer-use-plugin-gate");
+    assert.equal(pluginGatePatch.status, "skipped-optional");
+    assert.match(pluginGatePatch.reason, /Could not find Computer Use plugin gate literal/);
+    assert.ok(
+      validateReport(report, "upstream-build").some((failure) =>
+        failure.startsWith("linux-computer-use-plugin-gate: skipped-optional"),
+      ),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("enables Computer Use desktop features on Linux", () => {
   const patched = applyPatchTwice(
     applyLinuxComputerUseFeaturePatch,
@@ -1103,6 +1129,29 @@ test("patchExtractedApp records a structured patch report", () => {
     assert.ok(report.patches.some((patch) => patch.name === "main-process-ui" && patch.status === "applied"));
     assert.ok(report.patches.some((patch) => patch.name === "opaque-window-default-code-theme" && patch.status === "applied"));
     assert.ok(report.patches.some((patch) => patch.name === "keybinds-settings" && patch.status === "skipped-optional"));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("patch report marks warned asset patches as skipped", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-patch-report-warned-asset-"));
+  try {
+    const assetsDir = path.join(tempRoot, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    fs.writeFileSync(path.join(assetsDir, "index-test.js"), appSunsetBundleWithDriftingGateFixture());
+
+    const report = createPatchReport();
+    captureWarns(() => patchExtractedApp(tempRoot, { report }));
+
+    const sunsetPatch = report.patches.find((patch) => patch.name === "linux-app-sunset-gate");
+    assert.equal(sunsetPatch.status, "skipped-optional");
+    assert.match(sunsetPatch.reason, /Could not find app sunset gate needle/);
+    assert.ok(
+      validateReport(report, "upstream-build").some((failure) =>
+        failure.startsWith("linux-app-sunset-gate: skipped-optional"),
+      ),
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
