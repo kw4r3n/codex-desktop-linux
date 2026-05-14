@@ -842,6 +842,13 @@ PY
     assert_contains "$REPO_DIR/launcher/start.sh.template" "CODEX_SYNC_CLI_PREFLIGHT"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "wait_for_webview_server"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "verify_webview_origin"
+    # Probe-shape invariants: shell-native bash /dev/tcp + curl, with the
+    # bounded-execution defenses preserved (0.2 s watchdog + 2 s curl cap).
+    assert_contains "$REPO_DIR/launcher/start.sh.template" '/dev/tcp/127.0.0.1/"$CODEX_LINUX_WEBVIEW_PORT"'
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "kill -9 \"\$probe_pid\""
+    assert_contains "$REPO_DIR/launcher/start.sh.template" 'curl --silent --show-error --fail --max-time 2'
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "for attempt in \$(seq 1 250)"
+    assert_contains "$REPO_DIR/launcher/start.sh.template" "sleep 0.02"
     assert_contains "$REPO_DIR/launcher/start.sh.template" "Webview origin verified."
     assert_contains "$REPO_DIR/launcher/start.sh.template" "hydrate_graphical_session_env"
     assert_not_contains "$REPO_DIR/install.sh" "pkill -f \"http.server 5175\""
@@ -2446,6 +2453,18 @@ test_linux_file_manager_patch_fails_soft() {
     assert_contains "$output_log" 'Failed to apply Linux File Manager Patch'
 }
 
+test_webview_probe_equivalence() {
+    info "Checking webview probe behavioral equivalence (bash + curl vs python3 reference)"
+    # The harness extracts webview_port_is_open and verify_webview_origin from
+    # the live launcher template, runs them against a controlled localhost
+    # python3 http.server fixture, and asserts the verdicts match the
+    # python3 reference implementation across every input class (open/closed
+    # port, marker-OK, 404, wrong title, missing loader, dead port) plus
+    # confirms the watchdog cap still fires within its 150-500 ms window.
+    bash "$REPO_DIR/tests/webview_probe_equivalence.sh" \
+        || fail "webview probe equivalence harness reported a verdict mismatch or unbounded watchdog"
+}
+
 main() {
     test_common_helper_sourcing
     test_deb_builder_smoke
@@ -2466,6 +2485,7 @@ main() {
     test_chrome_plugin_staging
     test_chrome_native_host_manifest_writer
     test_launcher_template_sanity
+    test_webview_probe_equivalence
     test_side_by_side_launcher_identity
     test_linux_file_manager_patch_smoke
     test_linux_translucent_sidebar_default_patch_smoke
