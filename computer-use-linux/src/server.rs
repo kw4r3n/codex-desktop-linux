@@ -50,7 +50,13 @@ pub struct ComputerUseLinux {
 impl ComputerUseLinux {
     #[tool(
         name = "doctor",
-        description = "Report Linux Computer Use desktop integration readiness."
+        description = "Report Linux Computer Use desktop integration readiness.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     fn doctor(&self) -> Json<DoctorReport> {
         Json(doctor_report())
@@ -58,7 +64,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "setup_accessibility",
-        description = "Enable GNOME accessibility through gsettings so Linux Computer Use can read AT-SPI trees."
+        description = "Enable GNOME accessibility through gsettings so Linux Computer Use can read AT-SPI trees.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     fn setup_accessibility(&self) -> Json<SetupReport> {
         Json(setup_accessibility_report())
@@ -66,7 +78,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "setup_window_targeting",
-        description = "Install and enable the optional GNOME Shell extension used for exact window list/focus targeting when GNOME blocks native introspection."
+        description = "Install and enable the optional GNOME Shell extension used for exact window list/focus targeting when GNOME blocks native introspection.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn setup_window_targeting(&self) -> Json<WindowTargetingSetupReport> {
         Json(setup_window_targeting_report().await)
@@ -74,7 +92,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "list_apps",
-        description = "List running Linux desktop app candidates visible to the Computer Use backend."
+        description = "List running Linux desktop app candidates visible to the Computer Use backend.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn list_apps(&self) -> Json<ListAppsOutput> {
         let (accessible_apps, accessibility_error) = match list_accessible_apps(50).await {
@@ -92,7 +116,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "list_windows",
-        description = "List compositor windows with title, app id, class, focus state, client type, and known bounds."
+        description = "List compositor windows with title, app id, class, focus state, client type, and known bounds.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn list_windows(&self) -> Json<ListWindowsOutput> {
         Json(window_list_output().await)
@@ -100,7 +130,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "focused_window",
-        description = "Return the compositor window that currently has keyboard focus."
+        description = "Return the compositor window that currently has keyboard focus.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn focused_window(&self) -> Json<FocusedWindowOutput> {
         match focused_window().await {
@@ -131,7 +167,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "activate_window",
-        description = "Focus a Linux desktop window by window_id, pid, app_id, wm_class, title, or terminal selectors when the compositor permits it."
+        description = "Focus a Linux desktop window by window_id, pid, app_id, wm_class, title, or terminal selectors when the compositor permits it.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn activate_window(
         &self,
@@ -169,7 +211,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "get_app_state",
-        description = "Start an app use session if needed, then get screenshot and accessibility state for a Linux app."
+        description = "Start an app use session if needed, then get screenshot and accessibility state for a Linux app.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn get_app_state(
         &self,
@@ -264,7 +312,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "screenshot",
-        description = "Capture the screen and return it as a viewable image. Optionally target a window (window_id/pid/wm_class/title/app_id): the window is raised to the front and the image is cropped to just that window, so you see the app on its own rather than the whole desktop. Returns the PNG image plus a short caption (dimensions, source, and crop bounds)."
+        description = "Capture the screen and return it as a viewable image. Optionally target a window (window_id/pid/wm_class/title/app_id): the window is raised to the front and the image is cropped to just that window, so you see the app on its own rather than the whole desktop. Returns the PNG image plus a short caption (dimensions, source, and crop bounds).",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn screenshot(
         &self,
@@ -374,7 +428,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "click",
-        description = "Click an element by index, semantic selector, or pixel coordinates from screenshot."
+        description = "Click an element by index, semantic selector, or pixel coordinates from screenshot.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn click(&self, Parameters(params): Parameters<ClickParams>) -> Json<ActionOutput> {
         let received = Some(serde_json::json!(params));
@@ -519,7 +579,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "perform_action",
-        description = "Invoke an accessibility action exposed by an element selected by index, identifier, or semantic selector. Defaults to the primary action unless action is provided."
+        description = "Invoke an accessibility action exposed by an element selected by index, identifier, or semantic selector. Defaults to the primary action unless action is provided.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn perform_action(
         &self,
@@ -531,7 +597,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "set_value",
-        description = "Set the value of a settable accessibility element selected by index, identifier, or semantic selector."
+        description = "Set the value of a settable accessibility element selected by index, identifier, or semantic selector.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn set_value(
         &self,
@@ -583,7 +655,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "scroll",
-        description = "Scroll an element in a direction by a number of pages."
+        description = "Scroll an element in a direction by a number of pages.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn scroll(&self, Parameters(params): Parameters<ScrollParams>) -> Json<ActionOutput> {
         let received = Some(serde_json::json!(params));
@@ -678,7 +756,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "drag",
-        description = "Drag from one point to another using pixel coordinates."
+        description = "Drag from one point to another using pixel coordinates.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn drag(&self, Parameters(params): Parameters<DragParams>) -> Json<ActionOutput> {
         let received = Some(serde_json::json!(params));
@@ -766,7 +850,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "press_key",
-        description = "Press a key or key-combination on the keyboard, optionally after focusing a target window or terminal selector."
+        description = "Press a key or key-combination on the keyboard, optionally after focusing a target window or terminal selector.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn press_key(
         &self,
@@ -807,7 +897,13 @@ impl ComputerUseLinux {
 
     #[tool(
         name = "type_text",
-        description = "Type literal text using keyboard input, optionally after focusing a target window or terminal selector."
+        description = "Type literal text using keyboard input, optionally after focusing a target window or terminal selector.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn type_text(
         &self,
