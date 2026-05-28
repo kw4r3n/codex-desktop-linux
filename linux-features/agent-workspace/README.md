@@ -14,10 +14,11 @@ pipeline:
 }
 ```
 
-When enabled, its install stage also copies the bundled `agent-workspace-linux`
-skill to `${CODEX_HOME:-~/.codex}/skills/agent-workspace-linux/SKILL.md`. The
-skill is the agent-facing progressive routing entrypoint; the feature does not
-write `~/.codex/config.toml` or register a generic MCP server at startup.
+When enabled, the feature stages the bundled `agent-workspace-linux` skill
+inside the generated app and installs it for the current user at launch time to
+`${CODEX_HOME:-~/.codex}/skills/agent-workspace-linux/SKILL.md`. The skill is
+the agent-facing progressive routing entrypoint; the feature does not write
+`~/.codex/config.toml` or register a generic MCP server at startup.
 
 The feature adds a Linux-only settings section named **Agent Workspaces**. The
 page can point Codex Desktop at an `agent-workspace-linux` binary, list and edit
@@ -41,6 +42,11 @@ array without invoking a shell. Manual startup commands typed into the profile
 editor are also parsed into an argv array directly; shell syntax such as
 redirection, pipes, or environment assignment is not interpreted unless the user
 explicitly chooses a shell binary as the program.
+
+When this feature is enabled, it also sets `CODEX_LINUX_PIN_RENDERER_URL=1` for
+the launcher so Electron keeps using the managed local webview origin even if
+the environment contains an inherited `ELECTRON_RENDERER_URL`. Set
+`CODEX_LINUX_ALLOW_RENDERER_URL_OVERRIDE=1` only for explicit debugging.
 
 Install `agent-workspace-linux` (v0.1.1 or newer) from the **Agent Workspaces**
 page with **Install from npm**, or install it manually. v0.1.1 is the first
@@ -66,7 +72,10 @@ or at `~/.local/bin/agent-workspace-linux`.
 The bridge is intentionally allowlisted. It invokes `agent-workspace-linux`
 through `execFile`, never through a shell, and exposes only profile/workspace
 lifecycle actions needed by the UI. The install button also uses `execFile` with
-the fixed npm package name (`npm install -g @agent-sh/agent-workspace-linux`).
+the fixed npm package name. When no npm prefix is already configured, the
+install button runs `npm install -g --prefix ~/.local
+@agent-sh/agent-workspace-linux` so packaged installs do not try to write into
+the bundled managed Node.js runtime or a system directory.
 It resolves the binary in this order (highest priority first):
 
 1. the settings-page command field, persisted as

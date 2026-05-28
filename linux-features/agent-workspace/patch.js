@@ -49,8 +49,17 @@ function agentWorkspaceBrowserDataCopyBridgeSource({ fsVar, pathVar }) {
   return `"linux-agent-workspace-copy-browser-data":async({sourcePath:__codexSourcePath,profileId:__codexProfileId}={})=>{let __codexString=e=>typeof e===\`string\`&&e.trim().length>0?e.trim():null,__codexHome=()=>typeof process.env.HOME===\`string\`&&process.env.HOME.trim().length>0?process.env.HOME.trim():null,__codexExpand=e=>{let t=__codexString(e),n=__codexHome();return t&&t.startsWith(\`~/\`)&&n?${pathVar}.join(n,t.slice(2)):t},__codexSafe=e=>String(e||\`browser-session\`).toLowerCase().replace(/[^a-z0-9._-]+/g,\`-\`).replace(/^-+|-+$/g,\`\`)||\`browser-session\`;try{let e=__codexExpand(__codexSourcePath);if(!e)return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder is required\`};if(!${fsVar}.existsSync(e)||!${fsVar}.statSync(e).isDirectory())return{ok:!1,action:\`copyBrowserData\`,message:\`browser data folder does not exist\`,json:{source_path:e}};let t=__codexSafe(__codexProfileId),n=__codexExpand(process.env.XDG_DATA_HOME)||(__codexHome()?${pathVar}.join(__codexHome(),\`.local\`,\`share\`):${pathVar}.join(process.env.TMPDIR||\`/tmp\`,\`codex-agent-workspace-data\`)),r=${pathVar}.join(n,\`agent-workspace-linux\`,\`browser-sessions\`,t);if(${fsVar}.existsSync(r))return{ok:!1,action:\`copyBrowserData\`,message:\`managed browser-session copy already exists\`,json:{source_path:e,path:r,profile_id:t}};${fsVar}.mkdirSync(${pathVar}.dirname(r),{recursive:!0,mode:448});let a=new Set([\`SingletonCookie\`,\`SingletonLock\`,\`SingletonSocket\`,\`lockfile\`,\`.parentlock\`]);await ${fsVar}.promises.cp(e,r,{recursive:!0,force:!1,errorOnExist:!0,filter:(e)=>{let t=${pathVar}.basename(e);return !a.has(t)&&!t.startsWith(\`Singleton\`)}});return{ok:!0,action:\`copyBrowserData\`,json:{source_path:e,path:r,profile_id:t,copied:!0,excluded_lock_files:!0}}}catch(e){return{ok:!1,action:\`copyBrowserData\`,message:e instanceof Error?e.message:String(e)}}}`;
 }
 
+function useUserWritableNpmPrefixForInstallRuntime(source) {
+  const needle = "case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,n=[`install`,`-g`,`@agent-sh/agent-workspace-linux`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;";
+  const replacement = "case`installRuntime`:{let e=`npm`,t=__codexFirstExisting(__codexFromPathCandidates(e))||e,p=__codexString(process.env.NPM_CONFIG_PREFIX);p=p?__codexExpandCommand(p):(__codexHome()?__CODEX_PATH_VAR__.join(__codexHome(),`.local`):null);let n=[`install`,`-g`],r=Number.isFinite(Number(__codexTimeoutMs))?Number(__codexTimeoutMs):3e5;p&&n.push(`--prefix`,p);n.push(`@agent-sh/agent-workspace-linux`);";
+  if (!source.includes(needle)) {
+    throw new Error("could not update agent workspace npm install command");
+  }
+  return source.replace(needle, replacement);
+}
+
 function agentWorkspaceBridgeWithWorkspaceStartSource(args) {
-  return AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE
+  return useUserWritableNpmPrefixForInstallRuntime(AGENT_WORKSPACE_BRIDGE_SOURCE_TEMPLATE)
     .split("__CODEX_CHILD_PROCESS_VAR__").join(args.childProcessVar)
     .split("__CODEX_FS_VAR__").join(args.fsVar)
     .split("__CODEX_PATH_VAR__").join(args.pathVar);

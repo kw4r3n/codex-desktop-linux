@@ -10,8 +10,10 @@ const test = require("node:test");
 const vm = require("node:vm");
 const {
   enabledLinuxFeatureIds,
+  enabledLinuxFeatureInstallPlan,
   enabledLinuxFeatureStageHooks,
   loadLinuxFeaturePatchDescriptors,
+  stageEnabledLinuxFeatureInstall,
 } = require("../../scripts/lib/linux-features.js");
 const {
   createPatchReport,
@@ -365,7 +367,7 @@ test("agent-workspace feature stays disabled until listed in features.json", () 
   });
 });
 
-test("agent-workspace feature exposes optional bridge, settings, and stage hook when enabled", () => {
+test("agent-workspace feature exposes optional bridge, settings, resources, and prelaunch hook when enabled", () => {
   withTempFeatureConfig(["agent-workspace"], (root) => {
     assert.deepEqual(enabledLinuxFeatureIds({ featuresRoot: root }), ["agent-workspace"]);
     assert.deepEqual(
@@ -376,38 +378,77 @@ test("agent-workspace feature exposes optional bridge, settings, and stage hook 
       ],
     );
 
+    assert.deepEqual(enabledLinuxFeatureStageHooks({ featuresRoot: root }), []);
+
+    const plan = enabledLinuxFeatureInstallPlan({ featuresRoot: root });
     assert.deepEqual(
-      enabledLinuxFeatureStageHooks({ featuresRoot: root }).map((hook) => [hook.id, path.relative(root, hook.path)]),
-      [["agent-workspace", path.join("agent-workspace", "stage.sh")]],
+      plan.resources.map((resource) => [
+        resource.id,
+        path.relative(root, resource.source),
+        resource.target,
+        resource.mode,
+      ]),
+      [[
+        "agent-workspace",
+        path.join("agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"),
+        ".codex-linux/features/agent-workspace/skills/agent-workspace-linux/SKILL.md",
+        0o644,
+      ]],
+    );
+    assert.deepEqual(
+      plan.runtimeHooks.map((hook) => [
+        hook.id,
+        hook.key,
+        path.relative(root, hook.source),
+        hook.target,
+        hook.mode,
+      ]),
+      [
+        [
+          "agent-workspace",
+          "env",
+          path.join("agent-workspace", "pin-renderer.env"),
+          ".codex-linux/env.d/agent-workspace-pin-renderer.env",
+          0o644,
+        ],
+        [
+          "agent-workspace",
+          "prelaunch",
+          path.join("agent-workspace", "install-skill.sh"),
+          ".codex-linux/prelaunch.d/agent-workspace-install-skill.sh",
+          0o755,
+        ],
+      ],
     );
   });
 });
 
-test("agent-workspace stage hook installs the bundled Codex skill only", () => {
+test("agent-workspace prelaunch hook installs the staged bundled Codex skill only", () => {
   const featureDir = __dirname;
-  const stageHook = path.join(featureDir, "stage.sh");
+  const hook = path.join(featureDir, "install-skill.sh");
   const skillSource = path.join(featureDir, "skills", "agent-workspace-linux", "SKILL.md");
-  const stageSource = fs.readFileSync(stageHook, "utf8");
+  const hookSource = fs.readFileSync(hook, "utf8");
 
-  assert.doesNotMatch(stageSource, /config\.toml/);
-  assert.doesNotMatch(stageSource, /codex-configure/);
+  assert.doesNotMatch(hookSource, /config\.toml/);
+  assert.doesNotMatch(hookSource, /codex-configure/);
   assert.match(fs.readFileSync(skillSource, "utf8"), /^name: agent-workspace-linux$/m);
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-stage-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-prelaunch-"));
   const codexHome = path.join(tempDir, "codex-home");
+  const featuresDir = path.join(tempDir, "app", ".codex-linux", "features");
+  const stagedSkill = path.join(featuresDir, "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md");
   try {
-    const result = spawnSync("bash", [stageHook], {
+    fs.mkdirSync(path.dirname(stagedSkill), { recursive: true });
+    fs.copyFileSync(skillSource, stagedSkill);
+
+    const result = spawnSync("bash", [hook], {
       cwd: path.resolve(featureDir, "../.."),
       encoding: "utf8",
       env: {
         ...process.env,
         CODEX_HOME: codexHome,
+        CODEX_LINUX_FEATURES_DIR: featuresDir,
         HOME: "",
-        SCRIPT_DIR: path.resolve(featureDir, "../.."),
-        INSTALL_DIR: path.join(tempDir, "install"),
-        WORK_DIR: path.join(tempDir, "work"),
-        ARCH: process.arch,
-        CODEX_UPSTREAM_APP_DIR: path.join(tempDir, "upstream"),
       },
     });
 
@@ -417,9 +458,48 @@ test("agent-workspace stage hook installs the bundled Codex skill only", () => {
     const installedSkill = path.join(codexHome, "skills", "agent-workspace-linux", "SKILL.md");
     assert.equal(fs.readFileSync(installedSkill, "utf8"), fs.readFileSync(skillSource, "utf8"));
     assert.equal(fs.existsSync(path.join(codexHome, "config.toml")), false);
+
+    const missingResult = spawnSync("bash", [hook], {
+      cwd: path.resolve(featureDir, "../.."),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CODEX_HOME: codexHome,
+        CODEX_LINUX_FEATURES_DIR: path.join(tempDir, "missing-features"),
+        HOME: "",
+      },
+    });
+    assert.equal(missingResult.status, 0, `${missingResult.stderr}\n${missingResult.stdout}`);
+    assert.match(missingResult.stderr, /WARN: Agent Workspaces skill source not found/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test("agent-workspace declarative staging copies skill and prelaunch hook into the app", () => {
+  withTempFeatureConfig(["agent-workspace"], (featuresRoot) => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-stage-app-"));
+    try {
+      const appDir = path.join(tempDir, "codex-app");
+      stageEnabledLinuxFeatureInstall(appDir, { featuresRoot });
+      assert.equal(
+        fs.readFileSync(
+          path.join(appDir, ".codex-linux", "features", "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"),
+          "utf8",
+        ),
+        fs.readFileSync(path.join(featuresRoot, "agent-workspace", "skills", "agent-workspace-linux", "SKILL.md"), "utf8"),
+      );
+      assert.equal(
+        fs.readFileSync(path.join(appDir, ".codex-linux", "env.d", "agent-workspace-pin-renderer.env"), "utf8"),
+        "CODEX_LINUX_PIN_RENDERER_URL=1\n",
+      );
+      const hookPath = path.join(appDir, ".codex-linux", "prelaunch.d", "agent-workspace-install-skill.sh");
+      assert.match(fs.readFileSync(hookPath, "utf8"), /CODEX_LINUX_FEATURES_DIR/);
+      assert.equal((fs.statSync(hookPath).mode & 0o777), 0o755);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
 test("main bridge patch resolves quoted require aliases", () => {
@@ -466,6 +546,8 @@ test("main bridge patch adds an allowlisted linux-agent-workspace handler", () =
   assert.match(patched, /startsWith\(`~\/`\)/);
   assert.match(patched, /case`installRuntime`/);
   assert.match(patched, /@agent-sh\/agent-workspace-linux/);
+  assert.match(patched, /--prefix/);
+  assert.match(patched, /\.local/);
   assert.doesNotMatch(patched, /\[`install`,`--force`,`agent-workspace-linux`\]/);
   assert.match(patched, /case`permissionConfig`/);
   assert.match(patched, /case`permissionSave`/);
@@ -635,19 +717,56 @@ test("main bridge resolves existing global binaries before local fallbacks", asy
 });
 
 test("main bridge install action uses fixed npm package command", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-npm-install-"));
   const { handlers, execCalls } = buildBridgeHarness({
+    env: {
+      HOME: path.join(tempDir, "home"),
+    },
     execFile(command, args, options, callback) {
       execCalls.push({ command, args, options });
       callback(null, "installed\n", "");
     },
   });
 
-  const npm = await handlers["linux-agent-workspace"]({ action: "installRuntime" });
-  assert.equal(npm.ok, true);
-  assert.equal(path.basename(execCalls[0].command), "npm");
-  assert.deepEqual(JSON.parse(JSON.stringify(execCalls[0].args)), ["install", "-g", "@agent-sh/agent-workspace-linux"]);
-  assert.equal(execCalls[0].options.timeout, 300000);
-  assert.equal(execCalls.length, 1);
+  try {
+    const npm = await handlers["linux-agent-workspace"]({ action: "installRuntime" });
+    assert.equal(npm.ok, true);
+    assert.equal(path.basename(execCalls[0].command), "npm");
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(execCalls[0].args)),
+      ["install", "-g", "--prefix", path.join(tempDir, "home", ".local"), "@agent-sh/agent-workspace-linux"],
+    );
+    assert.equal(execCalls[0].options.timeout, 300000);
+    assert.equal(execCalls.length, 1);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("main bridge install action expands tilde npm prefix", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-agent-workspace-npm-prefix-"));
+  const home = path.join(tempDir, "home");
+  const { handlers, execCalls } = buildBridgeHarness({
+    env: {
+      HOME: home,
+      NPM_CONFIG_PREFIX: "~/npm-prefix",
+    },
+    execFile(command, args, options, callback) {
+      execCalls.push({ command, args, options });
+      callback(null, "installed\n", "");
+    },
+  });
+
+  try {
+    const npm = await handlers["linux-agent-workspace"]({ action: "installRuntime" });
+    assert.equal(npm.ok, true);
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(execCalls[0].args)),
+      ["install", "-g", "--prefix", path.join(home, "npm-prefix"), "@agent-sh/agent-workspace-linux"],
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("main bridge reads page-owned permission file and applies it to CLI calls", async () => {
