@@ -152,8 +152,13 @@ Runtime hooks receive `CODEX_HOME`, `CODEX_LINUX_APP_DIR`,
 `CODEX_LINUX_APP_STATE_DIR`, `CODEX_LINUX_FEATURES_DIR`, and
 `CODEX_LINUX_LAUNCHER_LOG`. Executable hooks also receive
 `CODEX_LINUX_FEATURE_HOOK_PHASE`; `afterExit` additionally receives
-`CODEX_LINUX_ELECTRON_EXIT_STATUS`. Use this pattern for user-home artifacts
-such as Codex skills: stage the source file with `resources` under
+`CODEX_LINUX_ELECTRON_EXIT_STATUS`. `prelaunch` hooks also receive
+`CODEX_LINUX_FEATURE_STATE_ENV_DIR`, a state-owned directory for conditional
+runtime env files. The launcher clears it before current enabled feature
+prelaunch hooks run and loads `KEY=VALUE` files from it before CLI lookup and
+Electron launch. Use this for redirects that should exist only after a runtime
+probe succeeds. Use this pattern for user-home artifacts such as Codex skills:
+stage the source file with `resources` under
 `.codex-linux/features/<feature-id>/...`, then copy it from
 `$CODEX_LINUX_FEATURES_DIR/<feature-id>/...` to `$CODEX_HOME/skills/...` in a
 `runtimeHooks.prelaunch` script. Do not write user-home files from `stage.sh`;

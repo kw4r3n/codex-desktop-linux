@@ -198,6 +198,7 @@ configure_multi_launch_instance() {
 
 configure_multi_launch_instance "$@"
 WEBVIEW_ORIGIN="http://127.0.0.1:$CODEX_LINUX_WEBVIEW_PORT"
+FEATURE_STATE_ENV_DIR="$APP_STATE_DIR/feature-env.d"
 
 mkdir -p "$LOG_DIR" "$APP_CONFIG_DIR" "$APP_STATE_DIR" "$LAUNCH_ACTION_RUNTIME_DIR"
 chmod 700 "$LAUNCH_ACTION_RUNTIME_DIR" 2>/dev/null || true
@@ -549,17 +550,20 @@ prepend_managed_node_runtime_to_path() {
     export CODEX_MANAGED_NODE_RUNTIME_DIR="$SCRIPT_DIR/resources/node-runtime"
 }
 
-source_feature_env_files() {
-    [ -n "${FEATURE_ENV_DIR:-}" ] || return 0
-    [ -d "$FEATURE_ENV_DIR" ] || return 0
+source_env_files_from_dir() {
+    local env_dir="$1"
+    local label="$2"
+
+    [ -n "$env_dir" ] || return 0
+    [ -d "$env_dir" ] || return 0
 
     local env_file
     local line
     local name
     local value
-    for env_file in "$FEATURE_ENV_DIR"/*; do
+    for env_file in "$env_dir"/*; do
         [ -f "$env_file" ] || continue
-        echo "Loading Linux feature environment: $env_file"
+        echo "Loading Linux feature $label environment: $env_file"
         while IFS= read -r line || [ -n "$line" ]; do
             line="${line%$'\r'}"
             case "$line" in
@@ -581,6 +585,21 @@ source_feature_env_files() {
             export "$name=$value"
         done < "$env_file"
     done
+}
+
+source_feature_env_files() {
+    source_env_files_from_dir "${FEATURE_ENV_DIR:-}" "static"
+}
+
+reset_feature_state_env_dir() {
+    [ -n "${FEATURE_STATE_ENV_DIR:-}" ] || return 0
+    rm -rf "$FEATURE_STATE_ENV_DIR"
+    mkdir -p "$FEATURE_STATE_ENV_DIR"
+    chmod 700 "$FEATURE_STATE_ENV_DIR" 2>/dev/null || true
+}
+
+source_feature_state_env_files() {
+    source_env_files_from_dir "${FEATURE_STATE_ENV_DIR:-}" "runtime"
 }
 
 run_feature_prelaunch_hooks() {
@@ -1385,7 +1404,8 @@ export_feature_runtime_env() {
     CODEX_LINUX_APP_DIR="$SCRIPT_DIR"
     CODEX_LINUX_APP_STATE_DIR="$APP_STATE_DIR"
     CODEX_LINUX_LAUNCHER_CMD="$SCRIPT_DIR/start.sh"
-    export CODEX_LINUX_APP_DIR CODEX_LINUX_APP_STATE_DIR CODEX_LINUX_LAUNCHER_CMD
+    CODEX_LINUX_FEATURE_STATE_ENV_DIR="$FEATURE_STATE_ENV_DIR"
+    export CODEX_LINUX_APP_DIR CODEX_LINUX_APP_STATE_DIR CODEX_LINUX_LAUNCHER_CMD CODEX_LINUX_FEATURE_STATE_ENV_DIR
     resolve_update_manager_path >/dev/null 2>&1 || true
 }
 
@@ -2841,7 +2861,11 @@ if using_second_instance_handoff; then
     log_phase "second_instance_handoff_ready"
 elif needs_cold_start; then
     log_phase "feature_prelaunch_start"
+    reset_feature_state_env_dir
+    log_phase "feature_state_env_reset"
     run_feature_prelaunch_hooks
+    source_feature_state_env_files
+    log_phase "feature_state_env"
     log_phase "feature_prelaunch"
     log_phase "packaged_prelaunch_start"
     run_packaged_runtime_prelaunch

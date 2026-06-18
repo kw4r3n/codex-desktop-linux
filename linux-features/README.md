@@ -99,6 +99,13 @@ or other user-home artifact, stage the source with `resources` and copy it from
 Avoid writing user-home files from `stage.sh`, because install/package/update
 rebuilds may run outside the real user's session.
 
+Prelaunch hooks can conditionally export runtime environment after probing local
+dependencies by writing `KEY=VALUE` files into
+`$CODEX_LINUX_FEATURE_STATE_ENV_DIR`. The launcher clears that directory before
+running the current enabled feature prelaunch hooks, then loads those env files
+before CLI lookup and Electron launch. Use this for runtime-only redirects that
+must not be exported when the feature dependency is unavailable.
+
 `packageHooks` run during native package staging and receive `PACKAGE_FORMAT`,
 `PACKAGE_ROOT`, `PACKAGE_NAME`, `PACKAGE_VERSION`, and `APP_DIR`.
 

@@ -1,0 +1,23 @@
+{
+  "id": "headroom-proxy",
+  "title": "Headroom Proxy",
+  "description": "Starts a local Headroom proxy for Codex Desktop and injects OpenAI-compatible traffic through it only when the proxy is ready.",
+  "defaultEnabled": false,
+  "runtimeHooks": {
+    "env": {
+      "source": "env",
+      "name": "env",
+      "mode": "0644"
+    },
+    "prelaunch": {
+      "source": "prelaunch.sh",
+      "name": "prelaunch",
+      "mode": "0755"
+    },
+    "afterExit": {
+      "source": "after-exit.sh",
+      "name": "after-exit",
+      "mode": "0755"
+    }
+  }
+}
