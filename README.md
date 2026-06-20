@@ -1,13 +1,27 @@
 # Codex Desktop for Linux
 
-Unofficial Linux build wrapper for [OpenAI Codex Desktop](https://openai.com/codex/).
-The official Codex app is available for macOS and Windows; this repository
-covers Linux by converting the upstream macOS `Codex.dmg` into a runnable Linux
-Electron app.
+This fork tracks
+[ilysenko/codex-desktop-linux](https://github.com/ilysenko/codex-desktop-linux)
+and keeps the same goal: convert the upstream macOS
+[OpenAI Codex Desktop](https://openai.com/codex/) `Codex.dmg` into a runnable
+Linux Electron app with native Linux packages.
 
-The project builds native `.deb`, `.rpm`, and `.pkg.tar.zst` packages, supports
-local AppImage self-builds and Nix, and can install a local update manager that
-rebuilds future Linux packages from newer upstream DMGs.
+## What This Fork Adds
+
+This fork currently adds the opt-in
+[`headroom-proxy`](linux-features/headroom-proxy/README.md) Linux feature. When
+enabled, Codex Desktop starts a local Headroom proxy before a cold start, waits
+until it is reachable, and routes OpenAI-compatible traffic through
+`http://127.0.0.1:8787/v1`. If Headroom is not installed or the proxy does not
+become ready, Codex Desktop continues without redirecting traffic.
+
+The feature stays disabled by default, so normal Linux builds keep the upstream
+wrapper behavior unless `headroom-proxy` is listed in
+`linux-features/features.json`.
+
+The base project also builds native `.deb`, `.rpm`, and `.pkg.tar.zst`
+packages, supports local AppImage self-builds and Nix, and can install a local
+update manager that rebuilds future Linux packages from newer upstream DMGs.
 
 Before opening a pull request, read [CONTRIBUTING.md](CONTRIBUTING.md). For
 implementation details, see [AGENTS.md](AGENTS.md).
@@ -20,13 +34,13 @@ implementation details, see [AGENTS.md](AGENTS.md).
 | Fedora | `make bootstrap-native` | Builds and installs an `.rpm` |
 | openSUSE | `make bootstrap-native` | Builds and installs an `.rpm` |
 | Arch, Manjaro, EndeavourOS | `make bootstrap-native` | Builds and installs a pacman package |
-| NixOS / Nix | `nix run github:ilysenko/codex-desktop-linux` | See [Nix docs](docs/nix.md) |
+| NixOS / Nix | `nix run github:kw4r3n/codex-desktop-linux` | See [Nix docs](docs/nix.md) |
 | Atomic desktops / other distros | `make build-app && make appimage` | Local self-build; no bundled updater |
 
 Native install:
 
 ```bash
-git clone https://github.com/ilysenko/codex-desktop-linux.git
+git clone https://github.com/kw4r3n/codex-desktop-linux.git
 cd codex-desktop-linux
 make bootstrap-native
 ```
@@ -86,7 +100,7 @@ workarounds.
 | Native packages | Always | `make package && make install` | [Build and packaging](docs/build-and-packaging.md) |
 | Auto-update manager | Native packages | Included unless `PACKAGE_WITH_UPDATER=0` | [Updater](docs/updater.md) |
 | AppImage self-build | Manual | `make build-app && make appimage` | [Build and packaging](docs/build-and-packaging.md#appimage-local-self-build) |
-| Nix flake | Manual | `nix run github:ilysenko/codex-desktop-linux` | [Nix](docs/nix.md) |
+| Nix flake | Manual | `nix run github:kw4r3n/codex-desktop-linux` | [Nix](docs/nix.md) |
 | GUI install prompts | If installed | Uses `kdialog` / `zenity`, then terminal fallback | [Native setup](docs/native-setup.md) |
 | Linux file manager integration | Always | Built into core Linux patches | [Architecture](docs/architecture.md) |
 | Chrome plugin native host | Always | Installed with bundled plugins | [Architecture](docs/architecture.md) |
@@ -96,6 +110,7 @@ workarounds.
 | Linux Computer Use backend | Bundled | MCP backend registers by default | [Linux Computer Use](docs/linux-computer-use.md) |
 | Linux Computer Use UI | Opt-in | `CODEX_LINUX_ENABLE_COMPUTER_USE_UI=1` or settings flag | [Linux Computer Use](docs/linux-computer-use.md#enable-the-in-app-ui) |
 | Linux Features framework | Opt-in | Edit `linux-features/features.json` | [Linux Features](linux-features/README.md) |
+| Headroom Proxy | Opt-in | `headroom-proxy` | [Docs](linux-features/headroom-proxy/README.md) |
 | Agent Workspaces | Opt-in | `agent-workspace` | [Docs](linux-features/agent-workspace/README.md) |
 | Linux AppShots | Opt-in | `appshots` | [Docs](linux-features/appshots/README.md) |
 | Wrapper updater button | Opt-in | `codex-wrapper-updater` | [Docs](linux-features/codex-wrapper-updater/README.md) |
@@ -128,8 +143,7 @@ cp linux-features/features.example.json linux-features/features.json
 ```json
 {
   "enabled": [
-    "read-aloud",
-    "zed-opener"
+    "headroom-proxy"
   ]
 }
 ```
