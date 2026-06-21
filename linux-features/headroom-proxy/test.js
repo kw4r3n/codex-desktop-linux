@@ -7,6 +7,27 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
+test("headroom proxy env enables balanced savings profile defaults", () => {
+  const env = fs.readFileSync(path.join(__dirname, "env"), "utf8");
+  for (const expected of [
+    "HEADROOM_MODE=token",
+    "HEADROOM_SAVINGS_PROFILE=balanced",
+    "HEADROOM_SAVINGS_TARGET=0.70",
+    "HEADROOM_TARGET_RATIO=0.30",
+    "HEADROOM_COMPRESS_USER_MESSAGES=0",
+    "HEADROOM_COMPRESS_SYSTEM_MESSAGES=0",
+    "HEADROOM_PROTECT_RECENT=4",
+    "HEADROOM_PROTECT_ANALYSIS_CONTEXT=1",
+    "HEADROOM_MIN_TOKENS=250",
+    "HEADROOM_MAX_ITEMS=15",
+    "HEADROOM_SMART_CRUSHER_COMPACTION=0",
+    "HEADROOM_FORCE_KOMPRESS=0",
+    "HEADROOM_ACCURACY_GUARD=strict",
+  ]) {
+    assert.match(env, new RegExp(`^${expected}$`, "m"));
+  }
+});
+
 const {
   enabledLinuxFeatureIds,
   enabledLinuxFeatureInstallPlan,
