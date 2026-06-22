@@ -13,9 +13,21 @@ pid_file="$state_dir/headroom-proxy.pid"
 proxy_log="$log_dir/headroom-proxy.log"
 runtime_env_dir="${CODEX_LINUX_FEATURE_STATE_ENV_DIR:-$state_dir/feature-env.d}"
 runtime_env_file="$runtime_env_dir/headroom-proxy.env"
+raw_mode="${CODEX_HEADROOM_RAW_MODE:-${CODEX_HEADROOM_PROXY_BYPASS:-${HEADROOM_PROXY_BYPASS:-0}}}"
 
 log() {
     echo "headroom-proxy: $*"
+}
+
+flag_is_true() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 normalize_port() {
@@ -44,6 +56,12 @@ normalize_timeout() {
     esac
     printf '%s\n' "$((10#$raw))"
 }
+
+if flag_is_true "$raw_mode"; then
+    rm -f "$runtime_env_file"
+    log "raw mode requested; continuing without Headroom proxy"
+    exit 0
+fi
 
 find_headroom_command() {
     if [ -n "${HEADROOM_BIN:-}" ]; then

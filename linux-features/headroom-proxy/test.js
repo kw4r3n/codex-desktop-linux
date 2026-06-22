@@ -2,6 +2,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -18,10 +19,11 @@ test("headroom proxy env enables balanced savings profile defaults", () => {
     "HEADROOM_COMPRESS_SYSTEM_MESSAGES=0",
     "HEADROOM_PROTECT_RECENT=4",
     "HEADROOM_PROTECT_ANALYSIS_CONTEXT=1",
-    "HEADROOM_MIN_TOKENS=250",
+    "HEADROOM_MIN_TOKENS=1000",
     "HEADROOM_MAX_ITEMS=15",
     "HEADROOM_SMART_CRUSHER_COMPACTION=0",
     "HEADROOM_FORCE_KOMPRESS=0",
+    "HEADROOM_DISABLE_KOMPRESS=1",
     "HEADROOM_ACCURACY_GUARD=strict",
   ]) {
     assert.match(env, new RegExp(`^${expected}$`, "m"));
@@ -101,8 +103,44 @@ test("headroom proxy hooks stage with executable modes", () => {
 test("prelaunch writes redirect env only from runtime hook path", () => {
   const prelaunch = fs.readFileSync(path.join(__dirname, "prelaunch.sh"), "utf8");
   assert.match(prelaunch, /runtime_env_dir="\$\{CODEX_LINUX_FEATURE_STATE_ENV_DIR:-\$state_dir\/feature-env\.d\}"/);
+  assert.match(prelaunch, /CODEX_HEADROOM_RAW_MODE/);
   assert.match(prelaunch, /OPENAI_BASE_URL=%s/);
   assert.match(prelaunch, /headroom command not found/);
   assert.match(prelaunch, /unset OPENAI_BASE_URL OPENAI_API_BASE_URL/);
   assert.match(prelaunch, /OPENAI_TARGET_API_URL="\$target_base"/);
+});
+
+test("prelaunch raw mode removes redirect env without starting Headroom", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-headroom-raw-"));
+  const appDir = path.join(root, "app");
+  const stateDir = path.join(root, "state");
+  const logDir = path.join(root, "logs");
+  const runtimeEnvDir = path.join(stateDir, "feature-env.d");
+  const runtimeEnvFile = path.join(runtimeEnvDir, "headroom-proxy.env");
+
+  try {
+    fs.mkdirSync(runtimeEnvDir, { recursive: true });
+    fs.writeFileSync(runtimeEnvFile, "OPENAI_BASE_URL=http://127.0.0.1:8787/v1\n");
+
+    const result = childProcess.spawnSync(
+      "bash",
+      [path.join(__dirname, "prelaunch.sh"), appDir, stateDir, logDir],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CODEX_LINUX_FEATURE_STATE_ENV_DIR: runtimeEnvDir,
+          CODEX_HEADROOM_RAW_MODE: "1",
+          HEADROOM_BIN: path.join(root, "missing-headroom"),
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /raw mode requested/);
+    assert.equal(fs.existsSync(runtimeEnvFile), false);
+    assert.equal(fs.existsSync(path.join(stateDir, "headroom-proxy.pid")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

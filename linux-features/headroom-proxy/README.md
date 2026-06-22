@@ -32,10 +32,11 @@ The static env hook sets only Headroom process defaults:
 - `HEADROOM_COMPRESS_SYSTEM_MESSAGES=0`
 - `HEADROOM_PROTECT_RECENT=4`
 - `HEADROOM_PROTECT_ANALYSIS_CONTEXT=1`
-- `HEADROOM_MIN_TOKENS=250`
+- `HEADROOM_MIN_TOKENS=1000`
 - `HEADROOM_MAX_ITEMS=15`
 - `HEADROOM_SMART_CRUSHER_COMPACTION=0`
 - `HEADROOM_FORCE_KOMPRESS=0`
+- `HEADROOM_DISABLE_KOMPRESS=1`
 - `HEADROOM_ACCURACY_GUARD=strict`
 - `HEADROOM_PROXY_STARTUP_TIMEOUT=10`
 - `HEADROOM_PROXY_STOP_ON_EXIT=1`
@@ -51,6 +52,12 @@ env file under the app state dir. The launcher then exports:
 
 If `headroom` is not installed or startup fails, the runtime env file is not
 written and Codex Desktop launches without the Headroom redirect.
+
+For exact-source work, launch with `CODEX_HEADROOM_RAW_MODE=1` to force the
+raw provider path. The prelaunch hook removes any stale Headroom redirect env
+file and skips proxy startup for that launch, so Codex reads through the normal
+unproxied provider configuration. The same bypass is also accepted as
+`CODEX_HEADROOM_PROXY_BYPASS=1` or `HEADROOM_PROXY_BYPASS=1`.
 
 If another Headroom proxy is already listening on the configured port, the
 feature reuses that service instead of starting a new one. In that case the
