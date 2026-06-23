@@ -1,0 +1,9 @@
+{
+  "id": "font-family-overrides",
+  "title": "Font Family Overrides",
+  "description": "Adds opt-in Linux font-family overrides for normal text and code/monospace webview surfaces.",
+  "defaultEnabled": false,
+  "entrypoints": {
+    "patches": "./patch.js"
+  }
+}

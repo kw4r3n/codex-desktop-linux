@@ -1,0 +1,9 @@
+{
+  "id": "font-ligatures",
+  "title": "Font Ligatures",
+  "description": "Enables opt-in ligature rendering for code, editor, and monospace webview surfaces on Linux.",
+  "defaultEnabled": false,
+  "entrypoints": {
+    "patches": "./patch.js"
+  }
+}
