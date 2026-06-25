@@ -591,14 +591,18 @@ sed -n '1,160p' ~/.local/state/codex-update-manager/service.log
   context, and switch to a more direct path instead of repeating compression.
 - Prefer already-enabled local MCPs for normal coding work. Do not pay browser,
   Oracle, or unrelated plugin overhead unless the task actually needs them.
-- Use subagents only for independent low-risk enumeration or classification
-  work such as file listing, duplicate hunting, docs/issues triage, or log
-  bucketing. Keep final design, edit decisions, risk calls, and integration in
-  the main agent.
-- Spawn a subagent only when it reduces main-thread context pollution and a
-  lighter model or lower-effort pass is clearly sufficient. Skip delegation
-  when the task is small, tightly coupled to the main decision, or would need
-  full re-verification in the main thread anyway.
+- Treat the main agent as the orchestrator for broad or read-heavy work. This
+  local policy authorizes autonomous subagent use when it reduces context
+  pollution, parallelizes independent discovery, or keeps high-effort reasoning
+  focused on judgment and integration; do not ask the user for per-use
+  permission.
+- Delegate independent bounded research, classification, log triage, candidate
+  discovery, coarse comparisons, and isolated simple implementation only when
+  the result can be consumed as a short evidence card or disjoint patch. Skip
+  delegation for small, tightly coupled, conflict-prone, or full-reverification
+  tasks.
+- Use `$agent-orchestration` when model/effort routing, Evidence Cards,
+  Decision Packets, Scout/worker/gate roles, or subagent stop conditions matter.
 - See `docs/codex-token-efficiency.md` for the local operating profiles and
   verified Headroom/codebase-memory recipes behind these rules.
 

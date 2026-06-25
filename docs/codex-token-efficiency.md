@@ -107,23 +107,37 @@ Use when the task does not need the full enabled MCP/plugin surface.
 
 ### `parallel-light`
 
-Use only when there are independent, low-risk side questions.
+Use when there are independent, read-heavy side questions whose results can be
+compressed into short cards. The goal is not "always use subagents"; the goal is
+to keep noisy exploration out of the main thread while leaving judgment,
+design, and integration with the orchestrator.
 
-- Good delegated tasks: file listing, duplicate detection, docs/issues triage,
-  log bucketing, candidate enumeration.
-- Also good: simple code generation with a tight spec, one-shot data cleanup,
-  coarse comparison summaries, and bounded evidence extraction.
-- Keep final design, edits, risk evaluation, and integration in the main
-  model.
-- Skip delegation for small tasks where startup and reintegration cost more
-  than a few direct reads.
+This local policy authorizes autonomous subagent use when the efficiency
+criteria are met. The user should not have to approve each subagent launch.
+For detailed routing, use `$agent-orchestration`.
+
+- Good delegated tasks: file listing, symbol/file candidate enumeration,
+  duplicate detection, docs/issues triage, log bucketing, existing-setting
+  inventory, test-failure summarization, coarse comparison summaries, and
+  bounded evidence extraction.
+- Keep final judgment, design, edit policy, destructive decisions, security or
+  data-risk calls, user-facing explanation, and integration in the main model.
+- Let implementation workers edit only when the task is clearly isolated and the
+  touched files are not being edited by the orchestrator. Prefer the main agent
+  as the single normal code writer.
+- Skip delegation for small tasks where startup and reintegration cost more than
+  a few direct reads, or when the main thread will need the same raw context
+  anyway.
 
 Spawn criteria:
 
 1. Main thread would otherwise accumulate noisy intermediate results.
 2. Task has a clear contract and bounded output.
 3. A lighter model or lower-effort pass is enough.
-4. Main thread can consume result card directly without rereading whole search.
+4. Main thread can consume a result card directly without rereading the whole
+   search.
+5. The task is naturally separable by module, layer, feature, document set, or
+   log chunk.
 
 Do not spawn when:
 
@@ -132,6 +146,116 @@ Do not spawn when:
 3. Result will require full main-thread re-verification before it is useful.
 4. Task includes final design, edit policy, risk judgment, or cross-cutting
    integration.
+5. Parallel editing would create merge conflicts or coordination cost.
+
+## Subagent model routing
+
+Canonical details live in the global `$agent-orchestration` skill. Use the
+cheapest model that can produce reliable evidence for the delegated contract.
+Do not use Pro/Oracle settings unless explicitly requested by the user.
+
+| Use | Default routing |
+|---|---|
+| Scout / standard research subagent | `gpt-5.4` + Low |
+| Important research or ambiguous code exploration | `gpt-5.4` + Medium |
+| Design, integration, or review gate | `gpt-5.5` + High or Extra High |
+| Simple listing, classification, or format conversion | `gpt-5.4-mini` |
+| Rough bucketing for large logs | `gpt-5.4-mini` or `gpt-5.4` Low |
+| Code investigation where correctness matters | Avoid mini |
+
+Role defaults:
+
+- Orchestrator: Medium to High for normal work. Do not keep it on Extra High by
+  default; call a gate only for important decisions.
+- Scout / research subagent: `gpt-5.4` Low by default, Medium when ambiguity or
+  correctness risk is material.
+- Implementation worker: Medium to High, only for a narrow isolated change with
+  a tight spec.
+- Architect Gate: `gpt-5.5` High or Extra High before broad or risky design
+  decisions.
+- Review Gate: `gpt-5.5` High or Extra High after broad changes or before risky
+  changes, focused on regression risk, security/auth/billing/DB/concurrency,
+  test gaps, and overreach.
+
+Practical bias: `gpt-5.4-mini` is a fast clerk, not the default cheap
+investigator. If mini output forces the main agent to redo raw investigation,
+promote that task type to `gpt-5.4` Low or Medium.
+
+Call an Architect or Review Gate when any of these are true:
+
+1. The change spans 5+ files or 2+ modules.
+2. DB, migration, auth, billing, security, concurrency, cache, async, or state
+   management is involved.
+3. Public API, schema, or configuration behavior changes.
+4. Subagent evidence conflicts.
+5. Two debugging hypotheses have already failed.
+6. The agent is about to run a long autonomous implementation.
+7. The post-implementation diff is broad.
+8. Rework cost would likely exceed the gate cost.
+
+Skip the gate for simple docs updates, narrow low-risk fixes, checks that end
+after a few reads, obvious test repairs, or easy-to-revert local changes whose
+Scout evidence agrees.
+
+## Subagent contracts
+
+Canonical templates live in `$agent-orchestration`. Subagents return evidence
+cards, not raw dumps. Limit output to 5-10 cards and separate confirmed facts
+from guesses.
+
+Evidence card:
+
+```text
+- Finding:
+- Evidence: file/path/url/command
+- Confidence: high|medium|low
+- Why it matters:
+- Suggested next check:
+```
+
+For Architect or Review Gate calls, the orchestrator sends a decision packet
+instead of raw logs or full files:
+
+```text
+- Goal:
+- Constraints:
+- Relevant files / symbols:
+- Raw-confirmed facts:
+- Evidence cards:
+- Current hypothesis:
+- Proposed plan:
+- Risks:
+- Open questions:
+- Tests to run:
+- Decision needed:
+```
+
+Gate output stays short:
+
+```text
+- Decision: approve|revise|block
+- Key risks:
+- Required raw checks:
+- Minimal plan:
+- Test requirements:
+```
+
+Success looks like this:
+
+- The orchestrator can decide from evidence cards plus targeted raw checks.
+- High-end reasoning is spent on judgment, design, integration, and review
+  rather than bulk reading.
+- Long logs, JSON, web results, and history go through Headroom or indexed
+  retrieval, while edit targets, diffs, type definitions, and stack traces stay
+  raw.
+
+Failure looks like this:
+
+- The main model rereads everything the subagent read.
+- Subagent output is longer than the raw search would have been.
+- The subagent makes final design or risk decisions that the orchestrator must
+  untangle.
+- Tool/profile setup cost exceeds the delegated work.
 
 ## Structure-first recipe
 
