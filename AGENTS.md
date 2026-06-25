@@ -575,6 +575,33 @@ sed -n '1,160p' ~/.local/state/codex-update-manager/service.log
 
 ## Editing Guidance
 
+- For ordinary coding tasks, prefer structure-first exploration: use
+  `codebase-memory-mcp`, CodeGraph, or symbol tools before broad grep/read
+  sweeps. Avoid raw full-file sweeps when a graph or symbol query can narrow
+  the target first.
+- When correctness depends on exact text, switch back to narrow raw reads of
+  the target function, type definition, test, config, diff, or stack trace.
+  Do not rely on compressed summaries alone for edits or exact claims.
+- Treat Headroom as a selective summary lane, not the default code-reading
+  path. Use it for long logs, JSON, web fetches, repetitive search output, and
+  long history; keep edit targets, test failures, and error details in raw
+  form.
+- If the same information has to be fetched twice, treat that as a routing
+  miss: narrow the working set, keep only the confirmed facts/symbols in
+  context, and switch to a more direct path instead of repeating compression.
+- Prefer already-enabled local MCPs for normal coding work. Do not pay browser,
+  Oracle, or unrelated plugin overhead unless the task actually needs them.
+- Use subagents only for independent low-risk enumeration or classification
+  work such as file listing, duplicate hunting, docs/issues triage, or log
+  bucketing. Keep final design, edit decisions, risk calls, and integration in
+  the main agent.
+- Spawn a subagent only when it reduces main-thread context pollution and a
+  lighter model or lower-effort pass is clearly sufficient. Skip delegation
+  when the task is small, tightly coupled to the main decision, or would need
+  full re-verification in the main thread anyway.
+- See `docs/codex-token-efficiency.md` for the local operating profiles and
+  verified Headroom/codebase-memory recipes behind these rules.
+
 - Prefer source files over generated artifacts: `launcher/start.sh.template`
   for launcher behavior, `scripts/lib/*.sh` for build pipeline behavior,
   `scripts/patches/core/**/patch.js` for shipped patches, and
