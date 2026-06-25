@@ -120,6 +120,7 @@ const {
   applyLinuxAppServerFeatureEnablementPatch,
   applyLinuxChatSearchHydrationPatch,
   applyLinuxConfigWriteVersionConflictPatch,
+  applyLinuxThreadListAllModelProvidersPatch,
   applyLinuxI18nGatePatch,
   applyLinuxProfileSettingsMenuPatch,
   applyLinuxSafeMonospaceFontStackPatch,
@@ -722,6 +723,7 @@ test("default core patch descriptors are grouped and unique", () => {
     "linux-app-server-feature-enablement",
     "linux-app-server-backfill-wait",
     "linux-config-write-version-conflict",
+    "linux-thread-list-all-model-providers",
     "opaque-window-default-general-settings",
     "opaque-window-default-webview-index",
     "opaque-window-default-resolved-theme",
@@ -3746,6 +3748,60 @@ test("leaves already-null config write versions unchanged", () => {
   const patched = applyPatchTwice(applyLinuxConfigWriteVersionConflictPatch, source);
 
   assert.equal(patched, source);
+});
+
+test("lists thread history across all model providers", () => {
+  const source = [
+    "async function Cd(e,{modelProviders:t,archived:n=!1,sourceKinds:r=Ot,useStateDbOnly:i=!1}){let a=[],o=async s=>{let c=await e.sendRequest(`thread/list`,{limit:200,cursor:s,sortKey:e.recentConversationsSortKey,modelProviders:t,sourceKinds:r,archived:n,useStateDbOnly:i});a.push(...c.data),c.nextCursor&&await o(c.nextCursor)};return await o(null),a}",
+    "class X{listRecentThreads({cursor:e,limit:t,useStateDbOnly:n=!1}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:null,archived:!1,sourceKinds:Ot,useStateDbOnly:n})}listArchivedThreads(){return Cd(this.params.requestClient,{modelProviders:null,archived:!0})}}",
+  ].join("");
+
+  const patched = applyPatchTwice(applyLinuxThreadListAllModelProvidersPatch, source);
+
+  assert.match(patched, /modelProviders:t\?\?\[\],sourceKinds:r/);
+  assert.match(patched, /modelProviders:\[\],archived:!1,sourceKinds:Ot/);
+  assert.doesNotMatch(patched, /modelProviders:null,archived:!1/);
+});
+
+test("warns when the thread list provider filter shape drifts", () => {
+  const source = "function X(){return e.sendRequest(`thread/list`,{limit:200,modelProviders:null})}";
+
+  const { value, warnings } = captureWarns(() =>
+    applyLinuxThreadListAllModelProvidersPatch(source),
+  );
+
+  assert.equal(value, source);
+  assert.deepEqual(warnings, [
+    "WARN: Could not find thread list model provider filter needles — skipping all-providers history patch",
+  ]);
+});
+
+test("patchExtractedApp rewrites thread context provider filters", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-thread-list-providers-"));
+  try {
+    const assetsDir = path.join(tempRoot, "webview", "assets");
+    fs.mkdirSync(assetsDir, { recursive: true });
+    const source = [
+      "async function Cd(e,{modelProviders:t,archived:n=!1,sourceKinds:r=Ot,useStateDbOnly:i=!1}){let a=[],o=async s=>{let c=await e.sendRequest(`thread/list`,{limit:200,cursor:s,sortKey:e.recentConversationsSortKey,modelProviders:t,sourceKinds:r,archived:n,useStateDbOnly:i});a.push(...c.data),c.nextCursor&&await o(c.nextCursor)};return await o(null),a}",
+      "class X{listRecentThreads({cursor:e,limit:t,useStateDbOnly:n=!1}){return this.params.requestClient.sendRequest(`thread/list`,{limit:t,cursor:e,sortKey:this.recentConversationSortKey,modelProviders:null,archived:!1,sourceKinds:Ot,useStateDbOnly:n})}}",
+    ].join("");
+    const assetPath = path.join(assetsDir, "thread-context-inputs-test.js");
+    fs.writeFileSync(assetPath, source);
+
+    const report = createPatchReport();
+    captureWarns(() => patchExtractedApp(tempRoot, { report }));
+
+    const patched = fs.readFileSync(assetPath, "utf8");
+    assert.match(patched, /modelProviders:t\?\?\[\],sourceKinds:r/);
+    assert.match(patched, /modelProviders:\[\],archived:!1,sourceKinds:Ot/);
+    assert.ok(
+      report.patches.some((patch) =>
+        patch.name === "linux-thread-list-all-model-providers" && patch.status === "applied"
+      ),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("extends app-server startup waits while state db backfill is running", () => {

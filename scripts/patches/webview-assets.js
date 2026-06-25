@@ -534,6 +534,38 @@ function applyLinuxChatSearchHydrationPatch(currentSource) {
   return patchedSource;
 }
 
+function applyLinuxThreadListAllModelProvidersPatch(currentSource) {
+  if (!currentSource.includes("thread/list")) {
+    return currentSource;
+  }
+
+  const listAllPatched = /modelProviders:[A-Za-z_$][\w$]*\?\?\[\],sourceKinds:/u.test(currentSource);
+  const directListPatched = /modelProviders:\[\],archived:![01],sourceKinds:/u.test(currentSource);
+  let patchedSource = currentSource;
+
+  patchedSource = patchedSource.replace(
+    /modelProviders:([A-Za-z_$][\w$]*),sourceKinds:/g,
+    (_match, modelProvidersVar) => `modelProviders:${modelProvidersVar}??[],sourceKinds:`,
+  );
+  patchedSource = patchedSource.replace(
+    /modelProviders:null,(archived:![01],sourceKinds:)/g,
+    "modelProviders:[],$1",
+  );
+
+  if (
+    patchedSource === currentSource &&
+    !listAllPatched &&
+    !directListPatched &&
+    currentSource.includes("modelProviders")
+  ) {
+    console.warn(
+      "WARN: Could not find thread list model provider filter needles — skipping all-providers history patch",
+    );
+  }
+
+  return patchedSource;
+}
+
 function applyLinuxBrowserUseExternalAvailabilityPatch(currentSource) {
   const externalFeatureNeedle = "featureName:`browser_use_external`";
   const statsigNeedle = "410065390";
@@ -1818,6 +1850,7 @@ module.exports = {
   applyLinuxBrowserUseExternalAvailabilityPatch,
   applyLinuxBrowserUseNonLocalNavigationPatch,
   applyLinuxConfigWriteVersionConflictPatch,
+  applyLinuxThreadListAllModelProvidersPatch,
   applyLinuxI18nGatePatch,
   applyLinuxProfileSettingsMenuPatch,
   applyPersistentRateLimitFooterPatch,
